@@ -22,6 +22,7 @@ import type {StreamSubscription} from "./sub_store.ts";
 import * as sub_store from "./sub_store.ts";
 import * as topic_filter_pill from "./topic_filter_pill.ts";
 import type {TopicFilterPill, TopicFilterPillWidget} from "./topic_filter_pill.ts";
+import {localstorage} from "./localstorage.ts";
 import * as topic_list_data from "./topic_list_data.ts";
 import type {TopicInfo} from "./topic_list_data.ts";
 import * as ui_util from "./ui_util.ts";
@@ -34,6 +35,11 @@ const active_widgets = new Map<number, LeftSidebarTopicListWidget>();
 let zoomed_in_widget: LeftSidebarTopicListWidget | undefined;
 export let topic_filter_pill_widget: TopicFilterPillWidget | null = null;
 export let topic_state_typeahead: Typeahead<TopicFilterPill> | undefined;
+
+// Show resolved topics setting (persisted in localStorage)
+const SHOW_RESOLVED_TOPICS_LS_KEY = "show_resolved_topics";
+const resolved_topics_ls = localstorage();
+let show_resolved_topics = resolved_topics_ls.get(SHOW_RESOLVED_TOPICS_LS_KEY) === true;
 
 // We know whether we're zoomed or not.
 let zoomed = false;
@@ -454,11 +460,16 @@ function filter_topics_left_sidebar(topic_names: string[]): string[] {
     if (stream_id === undefined) {
         return topic_names;
     }
+    // Apply "show resolved topics" setting when no explicit pill filter is active
+    let topics_state = get_typeahead_search_pills_syntax();
+    if (!show_resolved_topics && topics_state === "") {
+        topics_state = "-is:resolved";
+    }
     return topic_list_data.filter_topics_by_search_term(
         stream_id,
         topic_names,
         search_term,
-        get_typeahead_search_pills_syntax(),
+        topics_state,
     );
 }
 
@@ -827,6 +838,26 @@ export function initialize({
     }
     $("#more-topics-modal").on("click", ".topic-box", on_topic_box_click);
     $("#stream_filters").on("click", ".topic-box", on_topic_box_click);
+
+    // Setup "Show resolved topics" checkbox
+    const $resolved_checkbox = $("#show-resolved-topics-checkbox");
+    if ($resolved_checkbox.length > 0) {
+        // Initialize checkbox from localStorage
+        $resolved_checkbox.prop("checked", show_resolved_topics);
+
+        $resolved_checkbox.on("change", () => {
+            show_resolved_topics = $resolved_checkbox.is(":checked");
+            resolved_topics_ls.set(SHOW_RESOLVED_TOPICS_LS_KEY, show_resolved_topics);
+
+            // Rebuild both the zoomed and non-zoomed topic lists
+            if (zoomed_in_widget) {
+                zoomed_in_widget.build();
+            }
+            for (const widget of active_widgets.values()) {
+                widget.build();
+            }
+        });
+    }
 
     $("body").on("input", "#left-sidebar-filter-topic-input", (): void => {
         const stream_id = active_stream_id();
