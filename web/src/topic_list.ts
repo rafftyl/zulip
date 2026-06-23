@@ -551,9 +551,8 @@ export function rebuild_left_sidebar($stream_li: JQuery, stream_id: number): voi
 
     clear();
     const widget = new LeftSidebarTopicListWidget($stream_li, stream_id, false);
-    widget.build();
-
     active_widgets.set(stream_id, widget);
+    widget.build();
 }
 
 export function left_sidebar_scroll_zoomed_in_topic_into_view(): void {
