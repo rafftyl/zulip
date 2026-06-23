@@ -24,6 +24,7 @@ import {$t} from "./i18n.ts";
 import * as inbox_ui from "./inbox_ui.ts";
 import * as inbox_util from "./inbox_util.ts";
 import * as left_sidebar_navigation_area from "./left_sidebar_navigation_area.ts";
+import {localstorage} from "./localstorage.ts";
 import * as message_edit from "./message_edit.ts";
 import * as message_feed_loading from "./message_feed_loading.ts";
 import * as message_feed_top_notices from "./message_feed_top_notices.ts";
@@ -460,6 +461,24 @@ export let show = (raw_terms: NarrowTerm[], show_opts: ShowMessageViewOpts): voi
     if (raw_terms.length === 0) {
         raw_terms = [{operator: "in", operand: "home"}];
     }
+
+    // When "show resolved topics" is off, add -is:resolved to channel-only narrows
+    const has_channel = raw_terms.some((t) => t.operator === "channel");
+    const has_topic = raw_terms.some((t) => t.operator === "topic");
+    const has_resolved_filter = raw_terms.some(
+        (t) => t.operator === "is" && t.operand === "resolved",
+    );
+    if (has_channel && !has_topic && !has_resolved_filter) {
+        const resolved_topics_ls = localstorage();
+        const show_resolved_topics = resolved_topics_ls.get("show_resolved_topics") === true;
+        if (!show_resolved_topics) {
+            raw_terms = [
+                ...raw_terms,
+                {operator: "is", operand: "resolved", negated: true},
+            ];
+        }
+    }
+
     const filter = new Filter(raw_terms);
     filter.try_adjusting_for_moved_with_target();
 
