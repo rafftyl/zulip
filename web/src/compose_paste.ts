@@ -624,11 +624,34 @@ export function cursor_at_markdown_link_marker($textarea: JQuery<HTMLTextAreaEle
     return possible_markdown_link_markers === "](";
 }
 
+function has_br_in_code_elements(html: string): boolean {
+    const body = new DOMParser()
+        .parseFromString(html, "text/html")
+        .querySelector("body");
+    if (!body) {
+        return false;
+    }
+    // Detect code content that uses <br> for line breaks (e.g., JetBrains
+    // Rider on Windows 11). These <br> tags get stripped by TurndownService's
+    // br: "" config, losing blank lines. When detected, we redirect to the
+    // plain-text path which preserves all line breaks.
+    const code_elements = body.querySelectorAll("pre, code");
+    return [...code_elements].some((el) => el.querySelector("br") !== null);
+}
+
 export function maybe_transform_html(html: string, text: string): string {
     if (is_white_space_pre(html)) {
         // Copied content styled with `white-space: pre` is pasted as is
         // but formatted as code. We need this for content copied from
         // VS Code like sources.
+        return "<pre><code>" + _.escape(text) + "</code></pre>";
+    }
+    if (text.includes("\n") && has_br_in_code_elements(html)) {
+        // Code copied from JetBrains IDEs (and similar editors) uses <br>
+        // tags for line breaks inside <pre>/<code> elements instead of
+        // white-space: pre. TurndownService strips <br> tags (br: ""),
+        // destroying blank lines. We redirect to the plain-text path,
+        // same as the VS Code case above.
         return "<pre><code>" + _.escape(text) + "</code></pre>";
     }
     return html;
